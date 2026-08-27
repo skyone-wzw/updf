@@ -1,0 +1,57 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-windows:
+    runs-on: windows-2025
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install static Qt 6.11.2
+        uses: AllanChain/install-qt-static@v6.11.2
+
+      - name: Install static qpdf
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install qpdf:x64-windows-static
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          qt-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_PREFIX_PATH="$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static"
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build --parallel
+
+      - name: Check output
+        shell: pwsh
+        run: |
+          Get-Item build\updf.exe
+          Get-Item build\updf.exe | Format-List Name,Length,FullName
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release
+          Copy-Item build\updf.exe release\updf.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: updf-windows-x64
+          path: release/updf.exe
+          if-no-files-found: error

@@ -8,6 +8,7 @@ on:
 
 jobs:
   build-windows:
+    name: Windows x64 static
     runs-on: windows-2025
 
     steps:
@@ -27,26 +28,54 @@ jobs:
         run: |
           & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install qpdf:x64-windows-static
 
+      - name: Setup static library paths
+        shell: pwsh
+        run: |
+          $vcpkgPrefix = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static"
+          $vcpkgLib = "$vcpkgPrefix\lib"
+
+          Write-Host "Vcpkg static prefix: $vcpkgPrefix"
+          Write-Host "Vcpkg static library directory: $vcpkgLib"
+
+          if (-not (Test-Path "$vcpkgLib\zs.lib")) {
+            Write-Error "Static zlib library not found: $vcpkgLib\zs.lib"
+            Get-ChildItem $vcpkgLib -Filter "*.lib" | Select-Object Name, FullName
+            exit 1
+          }
+
+          "VCPKG_STATIC_PREFIX=$vcpkgPrefix" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIB=$vcpkgLib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Inspect static dependencies
+        shell: pwsh
+        run: |
+          Write-Host "Static libraries available from vcpkg:"
+          Get-ChildItem "$env:VCPKG_STATIC_PREFIX\lib" -Filter "*.lib" | Sort-Object Name | Select-Object Name
+
+          Write-Host ""
+          Write-Host "zlib:"
+          Get-Item "$env:VCPKG_STATIC_PREFIX\lib\zs.lib"
+
       - name: Configure
         shell: pwsh
         run: |
-          qt-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_PREFIX_PATH="$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static"
+          Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+          qt-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:VCPKG_STATIC_PREFIX"
 
       - name: Build
         shell: pwsh
         run: |
           cmake --build build --parallel
 
-      - name: Check output
+      - name: Check runtime dependencies
         shell: pwsh
         run: |
-          Get-Item build\updf.exe
-          Get-Item build\updf.exe | Format-List Name,Length,FullName
+          dumpbin /DEPENDENTS build\updf.exe
 
       - name: Package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force release
+          New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item build\updf.exe release\updf.exe
 
       - name: Upload artifact

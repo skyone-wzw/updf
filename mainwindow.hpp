@@ -94,12 +94,16 @@ private:
 
     void selectPath() {
         const QString startDir = QDir(pathEdit->text()).exists() ? pathEdit->text() : QDir::homePath();
-        const QDir dir = QFileDialog::getExistingDirectory(
+        const QString path = QFileDialog::getExistingDirectory(
             this,
             "选择文件夹",
             startDir,
             QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
         );
+        if (path.isEmpty()) {
+            return;
+        }
+        const QDir dir(path);
         pathEdit->setText(dir.absolutePath());
     }
 

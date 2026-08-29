@@ -42,6 +42,12 @@ public slots:
                 QPDFPageDocumentHelper inputPages(input);
                 const auto pages = inputPages.getAllPages();
                 for (auto const &page: pages) {
+                    if (isCancelled.load()) {
+                        emit progressChanged(0);
+                        emit cancelled();
+                        return;
+                    }
+
                     outputPages.addPage(page, false);
                 }
 

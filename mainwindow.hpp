@@ -4,6 +4,8 @@
 #include <QLineEdit>
 #include <QFileDialog>
 #include <QProgressBar>
+#include <QDropEvent>
+#include <QMimeData>
 #include <QMessageBox>
 #include <QThread>
 #include <QDir>
@@ -19,6 +21,7 @@ public:
         setWindowTitle("PDF 快速合并");
         resize(600, 400);
         setMinimumWidth(400);
+        setAcceptDrops(true);
 
         auto *layout = new QVBoxLayout(this);
 
@@ -80,6 +83,57 @@ public:
 
 signals:
     void mergeRequested(const QStringList &files, const QString &target) const;
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override {
+        const QMimeData *mimeData = event->mimeData();
+
+        if (!mimeData->hasUrls()) {
+            event->ignore();
+            return;
+        }
+
+        const QList<QUrl> urls = mimeData->urls();
+
+        if (urls.isEmpty()) {
+            event->ignore();
+            return;
+        }
+
+        const QString path = urls.first().toLocalFile();
+
+        // 只接受文件夹
+        if (!path.isEmpty() && QFileInfo(path).isDir()) {
+            event->acceptProposedAction();
+        } else {
+            event->ignore();
+        }
+    }
+
+    void dropEvent(QDropEvent *event) override {
+        const QMimeData *mimeData = event->mimeData();
+
+        if (!mimeData->hasUrls()) {
+            event->ignore();
+            return;
+        }
+
+        const QList<QUrl> urls = mimeData->urls();
+
+        if (urls.isEmpty()) {
+            event->ignore();
+            return;
+        }
+
+        const QString path = urls.first().toLocalFile();
+
+        if (!path.isEmpty() && QFileInfo(path).isDir()) {
+            pathEdit->setText(path);
+            event->acceptProposedAction();
+        } else {
+            event->ignore();
+        }
+    }
 
 private:
     QLineEdit *pathEdit;

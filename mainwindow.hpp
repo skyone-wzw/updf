@@ -161,7 +161,7 @@ private:
         pathEdit->setText(dir.absolutePath());
     }
 
-    void updateFiles() const {
+    void updateFiles() {
         const auto dir = QDir(pathEdit->text());
         if (!dir.exists()) {
             fileOrder->setItems(QStringList());
@@ -203,7 +203,7 @@ private:
         emit mergeRequested(files, target);
     }
 
-    void cancelMergeTask() const {
+    void cancelMergeTask() {
         worker->cancel();
         cancelActionButton->setEnabled(false);
     }
@@ -218,7 +218,7 @@ private:
         );
     }
 
-    void onWorkerCancelled() const {
+    void onWorkerCancelled() {
         startActionButton->setEnabled(true);
         cancelActionButton->setEnabled(false);
     }

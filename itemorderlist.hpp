@@ -109,7 +109,7 @@ public:
         updateButtons();
     }
 
-    void setItems(const QStringList &items) const {
+    void setItems(const QStringList &items) {
         list->clear();
         list->addItems(items);
 
@@ -140,7 +140,7 @@ private:
     /**
      * 将某一行移动到目标行。
      */
-    void moveItem(const int from, const int to) const {
+    void moveItem(const int from, const int to) {
         if (from < 0 || from >= list->count())
             return;
 
@@ -164,7 +164,7 @@ private:
         updateButtons();
     }
 
-    void updateButtons() const {
+    void updateButtons() {
         const int row = list->currentRow();
         const int count = list->count();
 

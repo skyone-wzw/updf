@@ -20,7 +20,6 @@ public:
     explicit MainWindow(QWidget *parent = nullptr) : QWidget(parent) {
         setWindowTitle("PDF 快速合并");
         resize(600, 400);
-        setMinimumWidth(400);
         setAcceptDrops(true);
 
         auto *layout = new QVBoxLayout(this);

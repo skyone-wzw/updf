@@ -18,6 +18,7 @@ public:
         list->setDropIndicatorShown(true);
         list->setDragDropMode(QAbstractItemView::InternalMove);
         list->setDefaultDropAction(Qt::MoveAction);
+        list->setMinimumWidth(350);
 
         auto *orderButtonLayout = new QVBoxLayout();
         orderUp1 = new QPushButton("上移");

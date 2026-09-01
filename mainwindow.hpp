@@ -7,11 +7,12 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QMessageBox>
-#include <QThread>
 #include <QDir>
+#include <QFutureWatcher>
+#include <QtConcurrent/qtconcurrentrun.h>
 
 #include "itemorderlist.hpp"
-#include "pdfmergeworker.hpp"
+#include "pdftools.h"
 
 class MainWindow : public QWidget {
     Q_OBJECT
@@ -52,36 +53,19 @@ public:
         layout->addWidget(progressBar);
         layout->addLayout(actionLayout);
 
-        workerThread = new QThread(this);
-        worker = new PdfMergeWorker();
-        worker->moveToThread(workerThread);
-        // 保持 worker 线程存活
-        connect(workerThread, &QThread::finished, worker, &QObject::deleteLater);
-        // 启动 Merge Task 的信号
-        connect(this, &MainWindow::mergeRequested, worker, &PdfMergeWorker::startMerge);
-        workerThread->start();
+        mergeWatcher = new QFutureWatcher<void>(this);
 
         // 更新文件列表
         connect(pathEdit, &QLineEdit::textChanged, this, &MainWindow::updateFiles);
         // 文件夹选择按钮
         connect(pathSelectButton, &QPushButton::clicked, this, &MainWindow::selectPath);
         // worker 更新进度条
-        connect(worker, &PdfMergeWorker::progressChanged, progressBar, &QProgressBar::setValue);
-        connect(worker, &PdfMergeWorker::finished, this, &MainWindow::onWorkerFinished);
-        connect(worker, &PdfMergeWorker::cancelled, this, &MainWindow::onWorkerCancelled);
-        connect(worker, &PdfMergeWorker::failed, this, &MainWindow::onWorkerFailed);
+        connect(mergeWatcher, &QFutureWatcher<void>::progressValueChanged, progressBar, &QProgressBar::setValue);
+        connect(mergeWatcher, &QFutureWatcher<void>::finished, this, &MainWindow::onWorkerFinished);
 
         connect(startActionButton, &QPushButton::clicked, this, &MainWindow::startMergeTask);
         connect(cancelActionButton, &QPushButton::clicked, this, &MainWindow::cancelMergeTask);
     }
-
-    ~MainWindow() override {
-        workerThread->quit();
-        workerThread->wait();
-    }
-
-signals:
-    void mergeRequested(const QStringList &files, const QString &target) const;
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override {
@@ -142,8 +126,7 @@ private:
     QPushButton *cancelActionButton;
     QProgressBar *progressBar;
 
-    QThread *workerThread;
-    PdfMergeWorker *worker;
+    QFutureWatcher<void> *mergeWatcher;
 
     void selectPath() {
         const QString startDir = QDir(pathEdit->text()).exists() ? pathEdit->text() : QDir::homePath();
@@ -199,37 +182,43 @@ private:
         for (const auto &filename: filenames) {
             files.append(dir.filePath(filename));
         }
-        emit mergeRequested(files, target);
+
+        const auto future = QtConcurrent::run(
+            mergePdfWorker,
+            files,
+            target
+        );
+
+        mergeWatcher->setFuture(future);
     }
 
     void cancelMergeTask() {
-        worker->cancel();
+        mergeWatcher->cancel();
         cancelActionButton->setEnabled(false);
     }
 
     void onWorkerFinished() {
         startActionButton->setEnabled(true);
         cancelActionButton->setEnabled(false);
-        QMessageBox::information(
-            this,
-            "完成",
-            "PDF 合并完成"
-        );
-    }
 
-    void onWorkerCancelled() {
-        startActionButton->setEnabled(true);
-        cancelActionButton->setEnabled(false);
-    }
-
-    void onWorkerFailed(const QString &error) {
-        startActionButton->setEnabled(true);
-        cancelActionButton->setEnabled(false);
-        QMessageBox::critical(
-            this,
-            "错误",
-            error
-        );
+        try {
+            mergeWatcher->future().waitForFinished();
+        } catch (const std::exception &error) {
+            QMessageBox::critical(
+                this,
+                "错误",
+                QString::fromUtf8(error.what())
+            );
+            return;
+        } catch (...) {
+            QMessageBox::critical(
+                this,
+                "错误",
+                "未知错误"
+            );
+            return;
+        }
+        progressBar->setValue(100);
     }
 };
 
